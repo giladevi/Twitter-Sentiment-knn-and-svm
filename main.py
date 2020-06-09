@@ -1,227 +1,189 @@
-# TODO load tweets
-# TODO load positive and negative tweets as training set
-# TODO calculate X-vector of positive/negative values
-# TODO label Y - vector of positive/negative labels
-# TODO load testing set
-# TODO calculate X-vector of positive/negative values for each tweet
-# TODO label Y - using knn
-# TODO label Y using svm
-
-import re
+import pandas as pd
+from sklearn.utils import shuffle
 import nltk
 import operator
-from sklearn import preprocessing as pr
-from sklearn import svm
-from sklearn import model_selection
+import re
 import numpy as np
-
-#function that's returns a dictionary of words as keys and their positivity/negativity as values
-
+from sklearn import svm
+from svm import SVM
 
 
 def load_words_weight(filename):
-    f = open(filename, 'r')
+    f = open(filename, 'r', encoding="ISO-8859-1")
     words_weights = {}
     line = f.readline()
     nbr = 0
     while line:
         nbr += 1
-        #        print "%d lines loaderd from afinn" % (nbr)
-        l = line[:-1].split('\t')
-        words_weights[l[0]] = float(l[1]) / 4  # Normalizing
+        ll = line[: -1].split('\t')
+        words_weights[ll[0]] = float(ll[1])
         line = f.readline()
 
     return words_weights
-#function that's returns a dictionary of emoticons as keys and their positivity/negativity as values
-def createEmoticonDictionary(filename):
-    emo_scores = {'Positive': 0.5, 'Extremely-Positive': 1.0, 'Negative':-0.5,'Extremely-Negative': -1.0,'Neutral': 0.0}
-    emo_score_list={}
-    fi = open(filename,encoding="utf8")
-    l=fi.readline()
-    while l:
-        l=l.replace("\xc2\xa0"," ")
-        li=l.split(" ")
-        l2=li[:-1]
-        l2.append(li[len(li)-1].split("\t")[0])
-        sentiment=li[len(li)-1].split("\t")[1][:-1]
-        score=emo_scores[sentiment]
-        l2.append(score)
-        for i in range(0,len(l2)-1):
-            emo_score_list[l2[i]]=l2[len(l2)-1]
-        l=fi.readline()
-    return emo_score_list
-#generate vector of ngrams in a text file. used in: mostFreqList
-def ngramText(filename):
-    textWords=[]
-    f=open(filename,"r")
-    line=f.readline()
-    while line:
-        textWords.extend(line.split())
-        line=f.readline()
-    f.close()
-    return textWords
-#returns a dictionary with word as key and freq as value from a list of words. used in: mostFreqList
-def get_word_features(wordlist):
-    wordlist = nltk.FreqDist(wordlist)
-    result=[]
-    for k in wordlist.keys():
-        result.append([k,wordlist[k]])
-    return result
-#function that gets the k most frequent words from all the tweets, used in: buildUnigramVector
-def mostFreqList(filename,k):
-    d=get_word_features(ngramText(filename))
-    #sorts list
-    l=list(reversed(sorted(d, key=operator.itemgetter(1))))
-    m=[w[0] for w in l[0:k]]
-    return m
-#function that returns the UnigramVector of positive and negative tweet files
-def buildUnigramVector(positiveFile, negativeFile):
-    positive=mostFreqList(positiveFile,3000)
-    negative=mostFreqList(negativeFile,3000)
-    total = positive + negative # total unigram vector
-    for w in total:
-        count = total.count(w)
-        if (count > 1):
-            while (count > 0):
-                count = count - 1
-                total.remove(w)
-    # equalize unigrams sizes
-    m = min([len(positive), len(negative)])
-    return positive[0:m - 1], negative[0:m - 1]
-#funtion that returns a dictionary of slag as key and real words as values aka translates slang to language
-def loadSlangs(filename):
-    slangs={}
-    fi=open(filename,'r')
-    line=fi.readline()
-    while line:
-        l=line.split(r',%,')
-        if len(l) == 2:
-            slangs[l[0]]=l[1][:-2]
-        line=fi.readline()
-    fi.close()
-    return slangs
-#function that gets the stop words list
-def getStopWordList(stopWordListFileName):
-    stopWords = []
-    stopWords.append('at_user')
-    stopWords.append('url')
 
-    fp = open(stopWordListFileName, 'r')
+
+def create_emoticon_dictionary(filename):
+    emo_scores = {'Positive': 0.5, 'Extremely-Positive': 1.0, 'Negative': -0.5, 'Extremely-Negative': -1.0,
+                  'Neutral': 0.0}
+    emo_score_list = {}
+    fi = open(filename, encoding="utf8")
+    ll = fi.readline()
+    while ll:
+        ll = ll.replace("\xc2\xa0", " ")
+        li = ll.split(" ")
+        l2 = li[:-1]
+        l2.append(li[len(li) - 1].split("\t")[0])
+        sentiment = li[len(li) - 1].split("\t")[1][:-1]
+        score = emo_scores[sentiment]
+        l2.append(score)
+        for i in range(0, len(l2) - 1):
+            emo_score_list[l2[i]] = l2[len(l2) - 1]
+        ll = fi.readline()
+    return emo_score_list
+
+
+def get_word_features(word_list):
+    word_list = nltk.FreqDist(word_list)
+    result = []
+    for k in word_list.keys():
+        result.append([k, word_list[k]])
+    return result
+
+
+def ngram_text(filename):
+    text_words = []
+    f = open(filename, "r", encoding="ISO-8859-1")
+    line = f.readline()
+    while line:
+        text_words.extend(line.split())
+        line = f.readline()
+    f.close()
+    return text_words
+
+
+def most_freq_list(filename, k):
+    d = get_word_features(ngram_text(filename))
+    ll = list(reversed(sorted(d, key=operator.itemgetter(1))))
+    m = [w[0] for w in ll[0:k]]
+    return m
+
+
+def load_slangs(filename):
+    local_slangs = {}
+    fi = open(filename, 'r', encoding="ISO-8859-1")
+    line = fi.readline()
+    while line:
+        ll = line.split(r',%,')
+        if len(ll) == 2:
+            local_slangs[ll[0]] = ll[1][:-2]
+        line = fi.readline()
+    fi.close()
+    return local_slangs
+
+
+def get_stop_word_list(stop_word_list_file_name):
+    local_stop_words = ['at_user', 'url']
+    fp = open(stop_word_list_file_name, 'r', encoding="ISO-8859-1")
     line = fp.readline()
     while line:
         word = line.strip()
-        stopWords.append(word)
+        local_stop_words.append(word)
         line = fp.readline()
     fp.close()
-    return stopWords
+    return local_stop_words
 
-# globals:
-#feature of words positive and negative values
-words_weight = load_words_weight('data/words weights.txt')
-#features of emoticons used in a tweet
-emoticonDict= createEmoticonDictionary('data\emoticon.txt')
-#unigram positive and negative
-positive,negative = buildUnigramVector('data/training set/positive training tweets','data/training set/negative training tweets')
-#slang to words
-slangs=loadSlangs('data\internetSlangs.txt')
-#stop words
-stop_words=getStopWordList('data\stopWords.txt')
 
-#look for 2 or more repetitions of character and replace with the character itself. used in: processTweet
-def replaceTwoOrMore(s):
+def replace_two_or_more(s):
     pattern = re.compile(r"(.)\1{1,}", re.DOTALL)
     return pattern.sub(r"\1\1", s)
-#function that replaces slangs to normal words used in: processTweet
-def replaceSlangs(tweet,slangs):
-    result=''
-    words=tweet.split()
+
+
+# function that replaces slangs to normal words used in: processTweet
+def replace_slangs(tweet, slangs):
+    result = ''
+    words = tweet.split()
     for w in words:
         if w in slangs.keys():
-            result=result+slangs[w]+" "
+            result = result + slangs[w] + " "
         else:
-            result=result+w+" "
+            result = result + w + " "
     return result
+
+
 # arg tweet, stopWords list and internet slangs dictionary, Convert to lower case. used in mapTweet
-def processTweet(tweet,stopWords,slangs):
+def process_tweet(tweet, stop_words, slangs):
     tweet = tweet.lower()
-    #Convert www.* or https?://* to URL
-    tweet = re.sub('((www\.[^\s]+)|(https?://[^\s]+))','url',tweet)
-    tweet = re.sub('((www\.[^\s]+)|(http?://[^\s]+))','url',tweet)
-    #Convert @username to AT_USER
-    tweet = re.sub('@[^\s]+','at_user',tweet)
-    #Remove additional white spaces
+    # Convert www.* or https?://* to URL
+    tweet = re.sub('((www\.[^\s]+)|(https?://[^\s]+))', 'url', tweet)
+    tweet = re.sub('((www\.[^\s]+)|(http?://[^\s]+))', 'url', tweet)
+    # Convert @username to AT_USER
+    tweet = re.sub('@[^\s]+', 'at_user', tweet)
+    # Remove additional white spaces
     tweet = re.sub('[\s]+', ' ', tweet)
 
- #   tweet = tweet.strip('\'"') # removing sepcial caracter
-    processedTweet=replaceTwoOrMore(tweet) # replace multi-occurences by two
-    words=replaceSlangs(processedTweet,slangs).split()
-    processedTweet=''  # result variable
+    #   tweet = tweet.strip('\'"') # removing sepcial caracter
+    processed_tweet = replace_two_or_more(tweet)  # replace multi-occurences by two
+    words = replace_slangs(processed_tweet, slangs).split()
+    processed_tweet = ''  # result variable
     for w in words:
-        #strip punctuation
-        if w in stopWords:
-            None
-        else:
-#            w = w.strip('\'"%,.')
-#            w=w.replace("'", "")
-#            w=w.replace(".", "")
-            w=w.replace('''"''', ''' ''')
+        # strip punctuation
+        if w not in stop_words:
+            w = w.replace('''"''', ''' ''')
 
-        #ignore if it is a stop word
-            processedTweet=processedTweet+w+' '
-    return processedTweet
-#function that returns the words weight feature as calculated in the paper. used in mapTweet
-def afinnPolarity(tweet, words_weight):
-    p=0.0
-    nbr=0
+            # ignore if it is a stop word
+            processed_tweet = processed_tweet + w + ' '
+    return processed_tweet
+
+
+def afinn_polarity(tweet, local_words_weight):
+    p = 0.0
+    nbr = 0
     for w in tweet.split():
-        if w in words_weight.keys():
-            nbr+=1
-            p+=words_weight[w]
-    if (nbr != 0):
-        return p/nbr
+        if w in local_words_weight.keys():
+            nbr += 1
+            p += local_words_weight[w]
+    if nbr != 0:
+        return p / nbr
     else:
         return 0.0
-# d for the emoticons dictionary, calculate the aggregate score of emoticons in a tweet. used in: mapTweet
-def emoticonScore(tweet,d):
-    s=0.0;
-    l=tweet.split(" ")
-    nbr=0;
-    for i in range(0,len(l)):
-        if l[i] in d.keys():
-            nbr=nbr+1
-            s=s+d[l[i]]
-    if (nbr!=0):
-        s=s/nbr
-    return s
-# returns list of hashtagged words in a tweet. used in: mapTweet
-def hashtagWords(tweet):
-    l=tweet.split()
-    result=[]
-    for w in tweet.split():
-        if w[0]=='#' :
-            result.append(w)
 
+
+def emoticon_score(tweet, d):
+    s = 0.0
+    ll = tweet.split(" ")
+    nbr = 0
+    for i in range(0, len(ll)):
+        if ll[i] in d.keys():
+            nbr = nbr + 1
+            s = s + d[ll[i]]
+    if nbr != 0:
+        s = s / nbr
+    return s
+
+
+def hashtag_words(tweet):
+    result = []
+    for w in tweet.split():
+        if w[0] == '#':
+            result.append(w)
     return result
-# returns 1 if there is uppercase words in tweet, 0 otherwise. used in mapTweet
-def upperCase(tweet):
-    result=0
+
+
+def upper_case(tweet):
+    result = 0
     for w in tweet.split():
         if w.isupper():
-            result=1
+            result = 1
     return result
-#returns 1 if there are exclamation signs. used in mapTweet
-def exclamationTest(tweet):
-    result=0
-    if ("!" in tweet):
-        result=1
+
+
+def question_test(tweet):
+    result = 0
+    if "?" in tweet:
+        result = 1
     return result
-#returns 1 if there are question signs. used in mapTweet
-def questionTest(tweet):
-    result=0
-    if ("?" in tweet):
-        result=1
-    return result
-# ratio of number of capitalized letters to the length of tweet. used in mapTweet
+
+
 def freqCapital(tweet):
     count = 0
     for c in tweet:
@@ -231,152 +193,142 @@ def freqCapital(tweet):
         return 0
     else:
         return count / len(tweet)
-#function that returns the unigram score of the tweet. used in: tweetMap
-def scoreUnigram(tweet,posuni,neguni):
-    pos=0
-    neg=0
-    l=len(tweet.split())
-    for w in tweet.split():
-        if w in posuni:
-            pos+=1
-        if w in neguni:
-            neg+=1
-    if (l!=0) :
-        pos=pos/l
-        neg=neg/l
-    return [pos,neg]
-#function that map the tweet by the features presented in the article
-def mapTweet(tweet, words_weight, emoticonDict, positive, negative, slangs):
+
+
+def map_tweet(tweet, local_words_weight, local_emoticon_dict, local_slangs, stop_words):
     out = []
-    line = processTweet(tweet, stop_words, slangs)
-    p = afinnPolarity(line, words_weight)
+    line = process_tweet(tweet, stop_words, local_slangs)
+    p = afinn_polarity(line, local_words_weight)
     out.append(p)
-    out.append(float(emoticonScore(line, emoticonDict)))  # emo aggregate score be careful to modify weights
-    out.append(float(len(hashtagWords(line)) / 40))  # number of hashtagged words
-    out.append(float(len(line) / 140))  # for the length
-    out.append(float(upperCase(line)))  # uppercase existence : 0 or 1
-    out.append(float(exclamationTest(line)))
+    out.append(float(emoticon_score(line, local_emoticon_dict)))  # emo aggregate score be careful to modify weights
+    #out.append(float(len(hashtag_words(line)) / 140))  # number of hashtagged words
+    #out.append(float(len(line) / 140))  # for the length
     out.append(float(line.count("!") / 140))
-    out.append(float((questionTest(line))))
     out.append(float(line.count('?') / 140))
     out.append(float(freqCapital(line)))
-    u = scoreUnigram(line, positive, negative)
-    out.extend(u)
     return out
-#this function returns the X (values) and Y (labels) of a group of positive and negative tweets
-def loadMatrix(positive_tweets, negative_tweets, positive_label, negative_label):
-    vectors = []
-    labels = []
-    f = open(positive_tweets, 'r')
-    line = f.readline()
-    while line:
-        try:
-            z = mapTweet(line, words_weight, emoticonDict, positive, negative, slangs)
-            vectors.append(z)
-            labels.append(float(positive_label))
-        except:
-            None
-        line = f.readline()
-    f.close()
 
-    f = open(negative_tweets, 'r')
-    line = f.readline()
-    while line:
-        try:
-            z = mapTweet(line, words_weight, emoticonDict, positive, negative, slangs)
-            vectors.append(z)
-            labels.append(float(negative_label))
-        except:
-            None
-        line = f.readline()
-    #        print str(kneg)+"negative lines loaded : "+str(z)
-    f.close()
-    return vectors, labels
-# map tweet into a vector
 
-def trainModel(X,Y,knel,c): # relaxation parameter
-    clf=svm.SVC(kernel=knel) # linear, poly, rbf, sigmoid, precomputed , see doc
-    clf.fit(X,Y)
-    return clf
-# function to load test file in the csv format : sentiment,tweet
-def loadTest(filename,scaler,normalizer):
-    f=open(filename,'r')
-    line=f.readline()
-    labels=[]
-    vectors=[]
-    while line:
-        l=line[:-1].split(r'","')
-        s=float(l[0][1:])
-        tweet=l[5][:-1]
-        z=mapTweet(tweet,words_weight,emoticonDict,positive,negative,slangs)
-        #z_scaled=scaler.transform(z)
-        # z=normalizer.transform([z_scaled])
-        # z=z[0].tolist()
-        vectors.append(z)
-        labels.append(s)
-        line=f.readline()
-    f.close()
-    return vectors,labels
- # test a tweet against a built model
-def predict(tweet,model):
-    z=mapTweet(tweet,words_weight,emoticonDict,positive,negative,slangs) # mapping
-    #z_scaled=scaler.transform(z)
-    #z=normalizer.transform([z_scaled])
-    #z=z[0].tolist()
-    #return model.predict([z]).tolist()[0] # transform nympy array to list
-    return model.predict([z]) # transform nympy array to list
+# def load_matrix2(dataset_path, train_number, test_number, percent):
+#     words_weight = load_words_weight('data/words weights.txt')
+#     emoticon_dict = create_emoticon_dictionary('data/emoticon.txt')
+#     positive, negative = build_unigram_vector('data/training set/positive training tweets',
+#                                               'data/training set/negative training tweets')
+#     slangs = load_slangs('data/internetSlangs.txt')
+#     stop_words = get_stop_word_list('data/stopWords.txt')
+#
+#     dataset = pd.read_csv(dataset_path, encoding="ISO-8859-1", header=None)
+#
+#     dataset = shuffle(dataset)
+#
+#     train_set_pos = dataset[dataset[0] == 4].head(int(train_number * percent / 100))
+#     train_set_neg = dataset[dataset[0] == 0].head(train_number - int(train_number * percent / 100))
+#     test_set_pos = dataset[dataset[0] == 4].tail(int(test_number * percent / 100))
+#     test_set_neg = dataset[dataset[0] == 0].tail(test_number - int(test_number * percent / 100))
+#
+#     train_set = shuffle(pd.concat([train_set_pos, train_set_neg]))
+#     test_set = shuffle(pd.concat([test_set_pos, test_set_neg]))
+#
+#     train_tweets = train_set.iloc[:, 5].values
+#     train_y = np.subtract(np.divide(train_set.iloc[:, 0].values, 2), 1)
+#
+#     test_tweets = test_set.iloc[:, 5].values
+#     test_y = np.subtract(np.divide(test_set.iloc[:, 0].values, 2), 1)
+#
+#     train_x = np.array([map_tweet(tweet, words_weight, emoticon_dict, positive, negative, slangs, stop_words)
+#                         for tweet in train_tweets])
+#
+#     test_x = np.array([map_tweet(tweet, words_weight, emoticon_dict, positive, negative, slangs, stop_words)
+#                        for tweet in test_tweets])
+#
+#     return train_x, train_y, test_x, test_y
 
-def writeTest(filename,model): # function to load test file in the csv format : sentiment,tweet
-    f=open(filename,'r')
-    line=f.readline()
-    fo=open(filename+".svm_result","w")
-    fo.write("old,tweet,new\n")
-    while line:
-        l=line[:-1].split(r'","')
-        s=float(l[0][1:])
-        tweet=l[5][:-1]
-        nl=predict(tweet,model)
-        fo.write(r'"'+str(s)+r'","'+tweet+r'","'+str(nl)+r'"'+"\n")
-        line=f.readline()
-#        print str(kneg)+"negative lines loaded"
-    f.close()
-    fo.close()
-    print("labelled test dataset is stores in : "+str(filename)+".svm_result")
+
+def load_matrix(dataset_path, train_number, test_number):
+    words_weight = load_words_weight('data/words weights.txt')
+    emoticon_dict = create_emoticon_dictionary('data/emoticon.txt')
+    slangs = load_slangs('data/internetSlangs.txt')
+    stop_words = get_stop_word_list('data/stopWords.txt')
+
+    dataset = pd.read_csv(dataset_path, encoding="ISO-8859-1", header=None)
+
+    dataset = shuffle(dataset)
+
+    train_set = dataset[0: train_number]
+    test_set = dataset[train_number: train_number + test_number]
+
+    train_tweets = train_set.iloc[:, 5].values
+    train_y = np.subtract(np.divide(train_set.iloc[:, 0].values, 2), 1)
+
+    test_tweets = test_set.iloc[:, 5].values
+    test_y = np.subtract(np.divide(test_set.iloc[:, 0].values, 2), 1)
+
+    train_x = np.array([map_tweet(tweet, words_weight, emoticon_dict, slangs, stop_words)
+                        for tweet in train_tweets])
+
+    test_x = np.array([map_tweet(tweet, words_weight, emoticon_dict, slangs, stop_words)
+                       for tweet in test_tweets])
+
+    return train_x, train_y, test_x, test_y
+
+
+def cross_validation(x, y, folds_number):
+    avg = 0
+    precision = 0
+    recall = 0
+    fold_size = int(y.shape[0] / folds_number)
+
+    for i in range(folds_number):
+        train_x = np.concatenate((x[(i - 1) * fold_size: i * fold_size], x[(i + 1) * fold_size: (i + 2) * fold_size]))
+        train_y = np.concatenate((y[(i - 1) * fold_size: i * fold_size], y[(i + 1) * fold_size: (i + 2) * fold_size]))
+
+        test_x = x[i * fold_size: (i + 1) * fold_size]
+        test_y = y[i * fold_size: (i + 1) * fold_size]
+
+        clf = SVM()
+        clf.fit(train_x, train_y)
+        y_pred = clf.predict(test_x)
+        avg += np.average(y_pred == test_y)
+        precision += np.sum(np.bitwise_and(y_pred == 1, test_y == 1)) / np.sum(y_pred == 1)
+        recall += np.sum(np.bitwise_and(y_pred == 1, test_y == 1)) / np.sum(test_y == 1)
+
+    return avg / folds_number * 100, precision / folds_number, recall / folds_number
+
+
+def test():
+    dataset = pd.read_csv("data/data.csv", encoding="ISO-8859-1", header=None)
+    print(dataset[dataset[0] == 4].head(5))
+
 
 def main():
-    # X,Y,scales,normalizers
-    X, Y = loadMatrix('data/training set/positive training tweets', 'data/training set/negative training tweets', 1, 0)
-    # features standardization
-    X_scaled = pr.scale(np.array(X))
-    # to use later for testing data scaler.transform(X)
-    scaler = pr.StandardScaler().fit(X)
-    # features Normalization
-    X_normalized = pr.normalize(X_scaled, norm='l2')  # l2 norm
-    normalizer = pr.Normalizer().fit(X_scaled)  # as before normalizer.transform([[-1.,  1., 0.]]) for test
-    # starts with svm
-    X = X_normalized
-    X = X.tolist()
-    # 5 fold cross validation
-    x = np.array(X)
-    y = np.array(Y)
-    KERNEL_FUNCTIONS = 'linear'
-    C = [0.01 * i for i in range(1, 2)]
-    ACC = 0.0
-    PRE = 0.0
-    iter = 0
-    for knel in KERNEL_FUNCTIONS:
-        for c in C:
-            clf = svm.SVC(kernel=KERNEL_FUNCTIONS, C=c)
-            #scores = model_selection.cross_validate(clf, x, y, cv=5, scoring='accuracy')
-            # precisions = model_selection.cross_validate(clf, x, y, cv=5, scoring='precision')
-            # if (scores.mean() > ACC and precisions.mean() > PRE):
-            #     ACC = scores.mean()
-            #     PRE = precisions.mean()
-            #     KERNEL_FUNCTION = knel
-            #     C_PARAMETER = c
-            # iter = iter + 1
-    MODEL = trainModel(X, Y, KERNEL_FUNCTIONS, 0.01)
+    # train_x, train_y, test_x, test_y = load_matrix2("data/data.csv", 1000, 1000, 49.1)
+    train_x, train_y, test_x, test_y = load_matrix("data/sapirData.csv", 1100, 20)
 
-    #V, L = loadTest('data/testing set/test_dataset.csv',scaler,normalizer)
-    writeTest('data/testing set/test_dataset.csv', MODEL)
-main()
+    print('num of 1:', np.sum(test_y == 1))
+
+    #clf = svm.SVC(kernel='linear', C=0.01)
+    clf = SVM()
+
+    clf.fit(train_x, train_y)
+    y_pred = clf.predict(test_x)
+    res = np.average(y_pred == test_y) * 100
+
+    print('simple accurate: {:.2f}%'.format(res))
+    print('simple precision: {:.2f}'.format(np.sum(np.bitwise_and(y_pred == 1, test_y == 1)) / np.sum(y_pred == 1)))
+    print('simple recall: {:.2f}'.format(np.sum(np.bitwise_and(y_pred == 1, test_y == 1)) / np.sum(test_y == 1)))
+
+    accurate, precision, recall = cross_validation(train_x, train_y, 5)
+    print('cross validation accurate: {:.2f}%\ncross validation precision: {:.2f}\ncross validation recall: {:.2f}'
+          .format(accurate, precision, recall))
+
+
+# def test():
+#     y_pred = np.array([1, -1, 1, -1])
+#     test_y = np.array([1, 1, -1, 1])
+#
+#     print(np.sum(np.bitwise_and(y_pred == 1, test_y == 1)) / np.sum(y_pred == 1))
+#     print(np.sum(np.bitwise_and(y_pred == 1, test_y == 1)) / np.sum(test_y == 1))
+
+
+if __name__ == '__main__':
+    main()
